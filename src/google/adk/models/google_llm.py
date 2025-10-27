@@ -27,6 +27,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Union
 
+from google.auth.credentials import Credentials
 from google.genai import Client
 from google.genai import types
 from typing_extensions import override
@@ -56,9 +57,17 @@ class Gemini(BaseLlm):
 
   Attributes:
     model: The name of the Gemini model.
+    project: The GCP project to use.
+    credentials: The credentials to use for authentication.
+    target_principal: The service account to impersonate.
+    target_scopes: The scopes to use for the impersonated credentials.
   """
 
-  model: str = 'gemini-2.5-flash'
+  model: str = 'gemini-1.5-flash'
+  project: Optional[str] = None
+  credentials: Optional[Credentials] = None
+  target_principal: Optional[str] = None
+  target_scopes: Optional[list[str]] = None
 
   speech_config: Optional[types.SpeechConfig] = None
 
@@ -194,6 +203,21 @@ class Gemini(BaseLlm):
       yield llm_response
 
   @cached_property
+  def _impersonated_credentials(self) -> Optional[Credentials]:
+    if not self.target_principal:
+      return None
+
+    from google.auth import impersonated_credentials
+    from google.auth.transport.requests import Request
+
+    # The source credentials will be the default credentials on the machine.
+    return impersonated_credentials.Credentials(
+        target_principal=self.target_principal,
+        target_scopes=self.target_scopes,
+        request=Request(),
+    )
+
+  @cached_property
   def api_client(self) -> Client:
     """Provides the api client.
 
@@ -201,10 +225,12 @@ class Gemini(BaseLlm):
       The api client.
     """
     return Client(
+        project=self.project,
+        credentials=self._impersonated_credentials or self.credentials,
         http_options=types.HttpOptions(
             headers=self._tracking_headers,
             retry_options=self.retry_options,
-        )
+        ),
     )
 
   @cached_property
@@ -240,9 +266,11 @@ class Gemini(BaseLlm):
   @cached_property
   def _live_api_client(self) -> Client:
     return Client(
+        project=self.project,
+        credentials=self._impersonated_credentials or self.credentials,
         http_options=types.HttpOptions(
             headers=self._tracking_headers, api_version=self._live_api_version
-        )
+        ),
     )
 
   @contextlib.asynccontextmanager
