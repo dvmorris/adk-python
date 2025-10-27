@@ -63,7 +63,7 @@ class Gemini(BaseLlm):
     target_scopes: The scopes to use for the impersonated credentials.
   """
 
-  model: str = 'gemini-1.5-flash'
+  model: str = 'gemini-2.5-flash'
   project: Optional[str] = None
   credentials: Optional[Credentials] = None
   target_principal: Optional[str] = None
